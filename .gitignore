@@ -29,3 +29,8 @@ htmlcov/
 *.env
 !.env.example
 *.log
+
+# Respostas da API, entradas locais e arquivos de execução
+src/ETL/outputs/
+src/ETL/tmp/
+inputs/
