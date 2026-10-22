@@ -34,3 +34,6 @@ htmlcov/
 src/ETL/outputs/
 src/ETL/tmp/
 inputs/
+
+# CLAUDE
+CLAUDE.md

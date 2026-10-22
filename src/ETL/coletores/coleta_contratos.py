@@ -52,6 +52,7 @@ class Configuracao:
 
     @property
     def endpoint(self) -> str:
+        """Retorna a URL completa do endpoint de consulta de contratos."""
         return self.url_base + ENDPOINT
 
 
@@ -126,6 +127,14 @@ def rejeita_constante_json(valor: str) -> None:
 
 @contextmanager
 def log_da_coleta(pasta: Path) -> Iterator[logging.Logger]:
+    """Configura o logger da coleta e libera seus handlers ao sair do contexto.
+
+    Args:
+        pasta: Diretório existente onde será gravado o arquivo coleta.log.
+
+    Yields:
+        Logger que registra mensagens no arquivo de log e na saída padrão.
+    """
     logger = logging.getLogger("coleta_contratos")
     logger.setLevel(logging.INFO)
     logger.propagate = False
@@ -144,6 +153,7 @@ def log_da_coleta(pasta: Path) -> Iterator[logging.Logger]:
 
 
 def parser_argumentos() -> argparse.ArgumentParser:
+    """Cria o parser dos argumentos de linha de comando da coleta."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--tipo", required=True, choices=TIPOS, help="Tipo dos identificadores do arquivo.")
     parser.add_argument("--arquivo-ids", required=True, type=Path, help="TXT UTF-8 com um identificador por linha.")
@@ -159,6 +169,19 @@ def executa_coleta(
     pasta: Path,
     log: logging.Logger,
 ) -> int:
+    """Consulta os identificadores e grava os JSONs e os CSVs operacionais.
+
+    Args:
+        tipo: Tipo de identificador enviado à API.
+        ids: Pares de número da linha de entrada e código, na ordem de consulta.
+        config: Configurações de endpoint, timeout e intervalo entre consultas.
+        pasta: Diretório existente onde serão gravados os arquivos da coleta.
+        log: Logger usado para registrar o andamento e as falhas das consultas.
+
+    Returns:
+        0 se nenhuma consulta falhar, incluindo respostas sem dados, ou 1 se
+        houver ao menos uma falha. Falhas individuais não interrompem a coleta.
+    """
     falhou = False
     with (
         (pasta / "monitoramento.csv").open("w", encoding="utf-8", newline="") as monitoramento,
@@ -224,6 +247,19 @@ def executa_coleta(
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Valida os argumentos, prepara a pasta de saída e executa a coleta.
+
+    Args:
+        argv: Argumentos sem o nome do programa; se None, usa sys.argv[1:].
+
+    Returns:
+        0 se a coleta terminar sem falhas ou 1 se houver falhas nas consultas
+        ou na leitura e escrita dos arquivos durante a execução.
+
+    Raises:
+        SystemExit: Quando a ajuda é solicitada ou há erro nos argumentos,
+            na configuração ou na preparação dos dados e da pasta de saída.
+    """
     parser = parser_argumentos()
     args = parser.parse_args(argv)
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", args.alias):
