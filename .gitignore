@@ -30,10 +30,12 @@ htmlcov/
 !.env.example
 *.log
 
-# Respostas da API, entradas locais e arquivos de execução
-src/ETL/outputs/
-src/ETL/tmp/
+# Arquivos baixados e entradas locais
+outputs/
 inputs/
 
 # CLAUDE
 CLAUDE.md
+
+# esquema excalidraw
+fluxo-coletor-contratos.excalidraw
