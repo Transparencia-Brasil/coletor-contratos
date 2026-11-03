@@ -527,7 +527,30 @@ def bash_compativel():
     return caminho if caminho and "\\git\\" in caminho.lower() else None
 
 
+def wsl_disponivel():
+    """Indica se há uma distribuição WSL utilizável (só no Windows)."""
+    if os.name != "nt" or not shutil.which("wsl.exe"):
+        return False
+    try:
+        processo = subprocess.run(["wsl.exe", "-e", "true"], capture_output=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return processo.returncode == 0
+
+
 class TestWrapper(unittest.TestCase):
+    @unittest.skipUnless(wsl_disponivel(), "WSL indisponível")
+    def test_wrapper_no_wsl_usa_caminho_do_windows_para_o_python_exe(self):
+        # No WSL, o wrapper encontra .venv/Scripts/python.exe, que não abre caminhos /mnt/c/...
+        processo = subprocess.run(
+            ["wsl.exe", "--cd", str(RAIZ), "--", "bash", "src/coletores/run-coleta-contratos.sh",
+             "--coleta", "anual", "--ano", "26"],
+            capture_output=True, text=True, timeout=120,
+        )
+        self.assertEqual(processo.returncode, 2, processo.stderr)
+        self.assertNotIn("can't open file", processo.stderr)
+        self.assertIn("--ano", processo.stderr)
+
     @unittest.skipUnless(bash_compativel(), "bash compatível indisponível")
     def test_wrapper_de_outro_diretorio(self):
         with tempfile.TemporaryDirectory() as tmp:

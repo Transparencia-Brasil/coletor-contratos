@@ -88,7 +88,10 @@ bash src/coletores/run-coleta-contratos.sh --coleta mensal --ano 2026 --mes 07
 ```
 
 O wrapper usa o Python do `.venv` do repositório quando ele existe; caso
-contrário, usa `python3` ou `python` do sistema.
+contrário, usa `python3` ou `python` do sistema. Funciona no Git Bash e no WSL:
+no WSL, com o `.venv` criado no Windows, o caminho do script é convertido com
+`wslpath` para que o `python.exe` consiga abri-lo. Nesse caso, prefira
+`--saida` relativo, porque o Python do Windows não entende caminhos `/mnt/c/...`.
 
 ## Saída
 

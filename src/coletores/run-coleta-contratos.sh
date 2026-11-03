@@ -16,4 +16,10 @@ else
   PYTHON="python"
 fi
 
-exec "$PYTHON" "$SCRIPT_DIR/coleta_contratos.py" "$@"
+SCRIPT="$SCRIPT_DIR/coleta_contratos.py"
+# No WSL, o Python do Windows (.exe) não abre caminhos /mnt/c/...; converte para C:\...
+if [[ "$PYTHON" == *.exe ]] && command -v wslpath >/dev/null 2>&1; then
+  SCRIPT="$(wslpath -w "$SCRIPT")"
+fi
+
+exec "$PYTHON" "$SCRIPT" "$@"
