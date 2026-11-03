@@ -183,7 +183,7 @@ class TestConfiguracao(unittest.TestCase):
             with self.subTest(texto=texto), self.assertRaises(argparse.ArgumentTypeError):
                 coletor.valida_dia(texto)
 
-    def test_le_periodo_por_tipo(self):
+    def test_le_argumentos_por_tipo(self):
         for argv, esperado in (
             (["--coleta", "anual", "--ano", "2026"], ANUAL),
             (["--coleta", "mensal", "--ano", "2026", "--mes", "7"], MENSAL),
@@ -192,9 +192,13 @@ class TestConfiguracao(unittest.TestCase):
              coletor.Periodo("diario", "2024", "02", "29")),
         ):
             with self.subTest(argv=argv):
-                self.assertEqual(coletor.le_periodo(argv), esperado)
+                self.assertEqual(coletor.le_argumentos(argv), (esperado, None))
 
-    def test_le_periodo_rejeita_argumentos_incoerentes(self):
+    def test_le_argumentos_com_saida(self):
+        argv = ["--coleta", "anual", "--ano", "2026", "--saida", "pasta/contratos.csv"]
+        self.assertEqual(coletor.le_argumentos(argv), (ANUAL, Path("pasta/contratos.csv")))
+
+    def test_le_argumentos_rejeita_argumentos_incoerentes(self):
         for argv in (
             ["--ano", "2026"],
             ["--coleta", "semanal", "--ano", "2026"],
@@ -211,9 +215,10 @@ class TestConfiguracao(unittest.TestCase):
             ["--coleta", "diario", "--ano", "2025", "--mes", "02", "--dia", "29"],
             ["--coleta", "diario", "--ano", "2026", "--mes", "04", "--dia", "31"],
             ["--coleta", "anual", "--ano", "2026", "--sobrescrever"],
+            ["--coleta", "anual", "--ano", "2026", "--saida"],
         ):
             with self.subTest(argv=argv), patch("sys.stderr"), self.assertRaises(SystemExit) as erro:
-                coletor.le_periodo(argv)
+                coletor.le_argumentos(argv)
             self.assertEqual(erro.exception.code, 2)
 
     def test_destino_por_periodo_com_data_e_hora_do_download(self):
@@ -404,6 +409,44 @@ class TestMain(ComServidor):
         self.assertEqual(self.servidor.caminhos, [])
         self.assertIn(str(self.destino), log)
 
+    def test_main_saida_absoluta_substitui_destino_automatico(self):
+        saida = self.pasta / "outro" / "sub" / "contratos.csv"
+        codigo, log = self.executa("--coleta", "anual", "--ano", "2026", "--saida", str(saida))
+        self.assertEqual(codigo, 0)
+        self.assertEqual(saida.read_bytes(), CORPO)
+        self.assertFalse(saida.with_name(saida.name + ".part").exists())
+        self.assertFalse((self.pasta / "anual").exists())
+        self.assertIn(str(saida), log)
+
+    def test_main_saida_relativa_ao_diretorio_de_execucao(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            diretorio_anterior = os.getcwd()
+            os.chdir(tmp)
+            try:
+                codigo, log = self.executa("--coleta", "mensal", "--ano", "2026", "--mes", "7",
+                                           "--saida", "dados/mensal.csv")
+            finally:
+                os.chdir(diretorio_anterior)
+            saida = Path(tmp).resolve() / "dados" / "mensal.csv"
+            self.assertEqual(codigo, 0)
+            self.assertEqual(saida.read_bytes(), CORPO)
+            self.assertIn(str(saida), log)
+
+    def test_main_saida_existente_recusada(self):
+        saida = self.pasta / "contratos.csv"
+        saida.write_bytes(b"antigo")
+        codigo, log = self.executa("--coleta", "anual", "--ano", "2026", "--saida", str(saida))
+        self.assertEqual(codigo, 2)
+        self.assertEqual(saida.read_bytes(), b"antigo")
+        self.assertEqual(self.servidor.caminhos, [])
+        self.assertIn(str(saida), log)
+
+    def test_main_saida_que_e_pasta_recusada(self):
+        codigo, log = self.executa("--coleta", "anual", "--ano", "2026", "--saida", str(self.pasta))
+        self.assertEqual(codigo, 2)
+        self.assertEqual(self.servidor.caminhos, [])
+        self.assertIn(str(self.pasta), log)
+
     def test_main_downloads_em_momentos_diferentes_geram_dois_arquivos(self):
         coletor.datetime.now.side_effect = [MOMENTO, datetime(2026, 10, 28, 10, 29, 16)]
         self.assertEqual(self.executa()[0], 0)
@@ -495,6 +538,24 @@ class TestWrapper(unittest.TestCase):
             )
         self.assertEqual(processo.returncode, 2, processo.stderr)
         self.assertIn("--ano", processo.stderr)
+
+    @unittest.skipUnless(bash_compativel(), "bash compatível indisponível")
+    def test_wrapper_saida_relativa_a_quem_chama(self):
+        # Simula outro repositório chamando o wrapper com um caminho próprio.
+        servidor = ServidorLocal()
+        self.addCleanup(servidor.fecha)
+        ambiente = {**os.environ, "REPOSITORIO_BASE_URL": servidor.base, "DOWNLOAD_TIMEOUT_SECONDS": "5"}
+        with tempfile.TemporaryDirectory() as tmp:
+            processo = subprocess.run(
+                [bash_compativel(), (RAIZ / "src" / "coletores" / "run-coleta-contratos.sh").as_posix(),
+                 "--coleta", "diario", "--ano", "2026", "--mes", "7", "--dia", "9",
+                 "--saida", "outputs/diario.csv"],
+                cwd=tmp, env=ambiente, capture_output=True, text=True, timeout=60,
+            )
+            self.assertEqual(processo.returncode, 0, processo.stdout + processo.stderr)
+            self.assertEqual((Path(tmp) / "outputs" / "diario.csv").read_bytes(), CORPO)
+        self.assertEqual(servidor.caminhos,
+                         ["/base/diario/2026/07/09/comprasnet-contratos-diario-contratos-2026-07-09.csv"])
 
 
 if __name__ == "__main__":

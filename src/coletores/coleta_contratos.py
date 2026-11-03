@@ -175,7 +175,7 @@ def valida_mes(texto: str) -> str:
 def valida_dia(texto: str) -> str:
     """Valida --dia (1 a 31) e devolve com dois dígitos; usado como type do argparse.
 
-    Se o dia existe no mês informado é conferido em le_periodo().
+    Se o dia existe no mês informado é conferido em le_argumentos().
     """
     return valida_mes_dia(texto, 31, "dia")
 
@@ -301,10 +301,15 @@ def parser_argumentos() -> argparse.ArgumentParser:
     parser.add_argument("--ano", type=valida_ano, help="Ano com quatro dígitos (ex.: 2026).")
     parser.add_argument("--mes", type=valida_mes, help="Mês de 1 a 12 (ex.: 7 ou 07).")
     parser.add_argument("--dia", type=valida_dia, help="Dia de 1 a 31 (ex.: 9 ou 09).")
+    parser.add_argument(
+        "--saida", type=Path,
+        help="Caminho completo do CSV a gravar, relativo ao diretório de execução se não for "
+             "absoluto; sem ele, o arquivo vai para outputs/contratos/ com nome automático.",
+    )
     return parser
 
 
-def le_periodo(argv: list[str] | None = None) -> Periodo:
+def le_argumentos(argv: list[str] | None = None) -> tuple[Periodo, Path | None]:
     """Lê os argumentos e confere se combinam com o tipo de coleta.
 
     Cada tipo exige exatamente os parâmetros de PARAMETROS_COLETA: faltar um
@@ -315,7 +320,7 @@ def le_periodo(argv: list[str] | None = None) -> Periodo:
         argv: Argumentos de linha de comando; None usa sys.argv.
 
     Returns:
-        Período pedido.
+        Período pedido e o caminho de --saida, ou None se não informado.
 
     Raises:
         SystemExit: Com código 2, pelo argparse, para argumentos inválidos.
@@ -337,7 +342,7 @@ def le_periodo(argv: list[str] | None = None) -> Periodo:
             date(int(args.ano), int(args.mes), int(args.dia))
         except ValueError:
             parser.error(f"data inexistente: {args.ano}-{args.mes}-{args.dia}")
-    return Periodo(args.coleta, args.ano, args.mes, args.dia)
+    return Periodo(args.coleta, args.ano, args.mes, args.dia), args.saida
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -349,11 +354,11 @@ def main(argv: list[str] | None = None) -> int:
     Returns:
         0 quando o arquivo é salvo; 1 para falha de rede, HTTP diferente de
         404, download incompleto ou erro de escrita; 2 para configuração
-        inválida, período não publicado ou arquivo com o mesmo nome já
-        existente (download no mesmo segundo). Argumentos inválidos encerram
-        pelo argparse, também com código 2.
+        inválida, período não publicado ou destino já existente (caminho de
+        --saida ocupado ou download no mesmo segundo). Argumentos inválidos
+        encerram pelo argparse, também com código 2.
     """
-    periodo = le_periodo(argv)
+    periodo, saida = le_argumentos(argv)
     try:
         config = configuracao()
     except ValueError as erro:
@@ -361,10 +366,16 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     url = url_arquivo(config, periodo)
-    destino = destino_arquivo(periodo, datetime.now())
-    if destino.exists():
-        log.error("O arquivo %s já existe; aguarde um segundo e execute novamente", destino)
-        return 2
+    if saida is not None:
+        destino = saida.resolve()
+        if destino.exists():
+            log.error("%s já existe; informe em --saida um caminho ainda não usado", destino)
+            return 2
+    else:
+        destino = destino_arquivo(periodo, datetime.now())
+        if destino.exists():
+            log.error("O arquivo %s já existe; aguarde um segundo e execute novamente", destino)
+            return 2
 
     log.info("Baixando %s", url)
     inicio = time.monotonic()

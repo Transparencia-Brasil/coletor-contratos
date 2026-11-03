@@ -2,7 +2,8 @@
 
 Data: 2026-10-28. Status: implementado. Revisão 1 (2026-10-28): subpasta por ano, nome com data e hora do
 download e remoção de `--sobrescrever`. Revisão 2 (2026-10-30): parâmetro `--coleta` com os tipos anual,
-mensal e diário; ver a seção "Tipos de coleta".
+mensal e diário; ver a seção "Tipos de coleta". Revisão 3 (2026-11-03): parâmetro opcional `--saida`;
+ver a seção "Arquivo de saída escolhido por quem chama".
 
 ## Objetivo
 
@@ -64,6 +65,20 @@ python src/coletores/coleta_contratos.py --coleta diario --ano 2026 --mes 07 --d
   com período `2026`, `2026-07` ou `2026-07-09`. A saída do anual não muda.
 - Download, retentativas, `.part`, conferência do `Content-Length` e códigos de saída valem igualmente para
   os três tipos.
+
+## Arquivo de saída escolhido por quem chama (revisão 3)
+
+Motivação: o repositório `medicamentos-fdcc` vai chamar o coletor pelo wrapper Bash, a partir de um clone
+local indicado no `.env` dele, e precisa saber onde o CSV será gravado sem procurar pelo nome com data e hora.
+
+- `--saida ARQUIVO`, opcional: caminho completo do CSV. Sem ele, o destino automático em
+  `outputs/contratos/` não muda.
+- Caminho relativo é resolvido a partir do diretório de execução de quem chama (o wrapper não muda de
+  diretório). As pastas são criadas se não existirem; o `.part` fica ao lado do destino.
+- Caminho já existente, arquivo ou pasta, é recusado com código 2 antes de acessar a fonte. Os códigos de
+  saída não mudam: o 404 continua com código 2.
+- Ficaram de fora, por decisão de 2026-11-03: código de saída próprio para destino inválido e arquivo de
+  metadados ao lado do CSV.
 
 As seções abaixo descrevem a versão anual original; onde dizem "ano", leia "período".
 

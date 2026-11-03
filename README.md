@@ -117,6 +117,27 @@ inteiro de novo (no anual, de 57 MB a 165 MB), as cópias se acumulam na pasta d
 período até serem removidas manualmente. Se já existir um arquivo com o mesmo nome (duas
 execuções no mesmo segundo), a coleta é recusada.
 
+### Escolher o arquivo de saída
+
+O parâmetro opcional `--saida` substitui o caminho automático pelo caminho
+completo do CSV, o que permite a outro programa saber de antemão onde o
+arquivo vai ficar:
+
+```bash
+bash /caminho/para/coletor-contratos/src/coletores/run-coleta-contratos.sh \
+  --coleta mensal --ano 2026 --mes 07 \
+  --saida tasks/coleta-contratos/outputs/mensal/2026/07/contratos_mensal_2026-07.csv
+```
+
+Um caminho relativo é resolvido a partir do diretório de onde o comando é
+executado, e não da raiz deste repositório. As pastas são criadas se não
+existirem. A regra de não substituir vale também aqui: se o caminho já existir,
+seja arquivo ou pasta, a coleta é recusada com código 2, sem acessar a fonte.
+
+Quem chama o coletor de outro repositório usa o `.venv` e o `.env` deste
+repositório; variáveis definidas no ambiente de quem chama têm precedência
+sobre o `.env`.
+
 O download é feito em streaming, em blocos de 1 MiB, para um arquivo `.part` na
 mesma pasta. O nome final só é usado depois que o arquivo chega inteiro e o total
 recebido confere com o `Content-Length` informado pela fonte. Em caso de falha
@@ -134,7 +155,7 @@ que o conteúdo salvo seja exatamente o publicado.
 | --- | --- |
 | **0** | Arquivo salvo. |
 | **1** | Falha de rede, HTTP diferente de 200 e 404, download incompleto ou erro de escrita. |
-| **2** | Argumento ou configuração inválidos, período não publicado (404) ou arquivo com o mesmo nome já existente. |
+| **2** | Argumento ou configuração inválidos, período não publicado (404) ou destino já existente (caminho de `--saida` ocupado ou arquivo com o mesmo nome). |
 
 ## Configuração
 
@@ -165,4 +186,5 @@ três tipos de coleta, arquivos maiores que um bloco, ausência de `Content-Leng
 404 e outros status, downloads truncados, retentativa após 503, interrupção, nome
 com data e hora, recusa de nome já existente, validação dos argumentos de cada
 tipo de coleta (parâmetros faltando ou sobrando, mês, dia e datas inexistentes),
-validação da configuração e o wrapper Bash.
+`--saida` com caminho absoluto, relativo e já ocupado, validação da configuração
+e o wrapper Bash, inclusive chamado de outro diretório com `--saida` relativo.
